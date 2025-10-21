@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CTF-Pentest Simulator — Browser</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#0f1724; --accent:#6ee7b7; --muted:#9aa7bf; --danger:#ff7b7b;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{background:linear-gradient(180deg,#071021 0%, #071827 100%);color:#dbe7ff;}
+  header{display:flex;align-items:center;gap:16px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.04);}
+  .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,#0ea5a4,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;color:white;}
+  main{display:grid;grid-template-columns:300px 1fr 420px;gap:12px;padding:12px;height:calc(100vh - 74px);}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 6px 20px rgba(2,6,23,0.6);}
+  .left, .center, .right {overflow:auto;}
+  h2{margin:4px 0 10px 0;font-size:14px;color:var(--accent);}
+  .target{padding:8px;border-radius:6px;margin-bottom:8px;background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+  .target.active{outline:2px solid rgba(110,231,183,0.12);background:linear-gradient(90deg, rgba(110,231,183,0.03), rgba(255,255,255,0.00));}
+  button{background:#152233;border:1px solid rgba(255,255,255,0.03);color:var(--accent);padding:8px 10px;border-radius:6px;cursor:pointer}
+  button.ghost{background:transparent;border:1px dashed rgba(255,255,255,0.03);color:var(--muted)}
+  .scanner {display:flex;gap:6px;margin-bottom:8px}
+  .module-list{display:flex;flex-direction:column;gap:6px}
+  .module {padding:8px;border-radius:6px;background:#071427;border:1px solid rgba(255,255,255,0.02);display:flex;justify-content:space-between;align-items:center}
+  .term{background:#02040a;border-radius:6px;padding:8px;height:360px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;font-size:13px;color:#cfe8ff;}
+  .term .line{white-space:pre-wrap;margin:0 0 4px 0}
+  .controls{display:flex;gap:8px;margin:8px 0}
+  .small{font-size:12px;padding:6px 8px}
+  textarea,input[type="text"]{width:100%;padding:8px;background:#071427;border-radius:6px;border:1px solid rgba(255,255,255,0.03);color:var(--muted);resize:vertical}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  footer{display:flex;justify-content:space-between;align-items:center;padding:8px 18px;border-top:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+  .pill{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.02);font-size:12px}
+  .score{font-weight:700;color:var(--accent)}
+  .hint{background:linear-gradient(90deg, rgba(99,102,241,0.06), rgba(14,165,164,0.02));padding:8px;border-radius:6px;margin:6px 0}
+  .editor{height:280px;background:#061026;padding:8px;border-radius:6px;overflow:auto;color:#d8f3ff}
+  .row{display:flex;gap:8px;align-items:center}
+  .danger{background:linear-gradient(90deg,#6b2135,#9f1239);color:white}
+  .muted{color:var(--muted);font-size:13px}
+  .flag{background:linear-gradient(90deg,#1d4ed8,#06b6d4);padding:6px;border-radius:6px;color:white;font-weight:700}
+  .kbd{background:#0b1220;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;border:1px solid rgba(255,255,255,0.02)}
+  .split{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">CTF</div>
+  <div>
+    <div style="font-weight:700">CTF Pentest Simulator</div>
+    <div style="font-size:12px;color:var(--muted)">Safe browser-based training environment — simulated targets only</div>
+  </div>
+  <div style="margin-left:auto" class="pill">Local-only • Offline</div>
+</header>
+
+<main>
+  <aside class="left card">
+    <h2>Challenges</h2>
+    <div id="challengeList"></div>
+    <hr/>
+    <div style="margin-top:8px">
+      <button id="newChallengeBtn" class="small ghost">+ Create New Challenge</button>
+      <button id="importBtn" class="small ghost">Import Challenge</button>
+      <input id="importFile" type="file" accept=".json" style="display:none"/>
+    </div>
+    <div style="margin-top:12px">
+      <h2>Scoreboard</h2>
+      <div id="scoreboard" class="muted">No runs yet.</div>
+    </div>
+  </aside>
+
+  <section class="center card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 id="centerTitle">Simulator</h2>
+      <div class="row">
+        <div style="margin-right:10px" class="muted">User: <span id="playerName">Player1</span></div>
+        <input id="playerNameInput" placeholder="your handle" style="width:160px"/>
+        <button id="setName" class="small">Set</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <div style="flex:1">
+        <h2>Targets</h2>
+        <div id="targets"></div>
+      </div>
+      <div style="flex:1">
+        <h2>Modules</h2>
+        <div class="scanner">
+          <button id="scanBtn" class="small">Scan</button>
+          <button id="enumBtn" class="small">Enumerate</button>
+          <button id="runAllBtn" class="small">Run Example Exploits</button>
+        </div>
+        <div id="modules" class="module-list"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <h2>Terminal / Sessions</h2>
+      <div class="split">
+        <div style="flex:1">
+          <div id="terminal" class="term"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="termInput" type="text" placeholder="type command, e.g. help" />
+            <button id="termSend" class="small">Send</button>
+            <button id="clearTerm" class="small ghost">Clear</button>
+          </div>
+        </div>
+
+        <div style="width:380px">
+          <h2>Session Info</h2>
+          <div id="sessionInfo" class="muted">No session.</div>
+          <div style="margin-top:8px">
+            <button id="dropShell" class="small ghost">Simulate Reverse Shell</button>
+            <button id="getFlag" class="small">Get Flag (if present)</button>
+          </div>
+
+          <h2 style="margin-top:10px">Hints</h2>
+          <div id="hints"></div>
+
+          <h2 style="margin-top:10px">Export</h2>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button id="exportCh" class="small">Export Challenge</button>
+            <button id="exportRun" class="small">Export Run</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <h2>Module Editor</h2>
+      <div class="grid">
+        <div>
+          <label>Module name</label>
+          <input id="modName" type="text" placeholder="mod_sql_inject"/>
+        </div>
+        <div>
+          <label>Module type</label>
+          <input id="modType" type="text" placeholder="exploit/scanner/enum"/>
+        </div>
+      </div>
+      <div style="margin-top:8px" class="editor" id="modEditor" contenteditable spellcheck="false">
+// Example module template:
+// return object with run(target, ctx) -> { success: bool, log: string, newSession?: SessionObject, found?: any }
+(function(){
+  return {
+    name: "demo_ping",
+    type: "scanner",
+    description: "Simulated ping/port discovery",
+    run: function(target, ctx){
+      // ctx contains access to simulator helpers: sim.log, sim.getFlag, sim.createSession
+      sim.log("Pinging "+target.name+"...");
+      var ports = Object.keys(target.services || {});
+      sim.log("Open (simulated) ports: " + ports.join(", "));
+      return { success:true, log: "found ports: "+ports.join(",") };
+    }
+  };
+})();
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="saveModule" class="small">Save Module</button>
+        <button id="loadModule" class="small ghost">Load Selected Module</button>
+      </div>
+    </div>
+
+  </section>
+
+  <aside class="right card">
+    <h2>Author / Challenge Designer</h2>
+    <div>
+      <label>Challenge Title</label>
+      <input id="chTitle" placeholder="Example CTF target"/>
+      <label style="margin-top:6px">Description</label>
+      <textarea id="chDesc" rows="4">A simulated target for learning. Find flags by exploring services.</textarea>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="saveChallenge" class="small">Save Challenge</button>
+        <button id="startChallenge" class="small">Start Challenge</button>
+      </div>
+    </div>
+
+    <hr style="margin:12px 0"/>
+
+    <h2>Target Designer</h2>
+    <div>
+      <label>Target Name</label>
+      <input id="tName" placeholder="vuln-app"/>
+      <label style="margin-top:6px">IP (simulated)</label>
+      <input id="tIP" placeholder="10.0.0.5"/>
+      <label style="margin-top:6px">Services (JSON)</label>
+      <textarea id="tServices" rows="6">[{"name":"http","port":80,"desc":"Example webapp","vulns":["lfi","sqli"]},{"name":"ssh","port":22,"desc":"SSH service","vulns":[]}]</textarea>
+      <label style="margin-top:6px">Flags (JSON)</label>
+      <textarea id="tFlags" rows="4">[{"path":"/var/www/flag.txt","value":"FLAG{simulated-123}","hint":"Look under webroot"}]</textarea>
+
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="addTarget" class="small">Add Target</button>
+        <button id="clearTargets" class="small ghost">Clear Targets</button>
+      </div>
+    </div>
+
+    <hr style="margin:12px 0"/>
+    <h2>Saved Challenges</h2>
+    <div id="savedChallenges" class="muted">None</div>
+  </aside>
+</main>
+
+<footer>
+  <div class="muted">Built for training • No real exploitation • Use only on targets you own</div>
+  <div>Score: <span id="score" class="score">0</span></div>
+</footer>
+
+<script>
+
+
+// Simulated engine
+const Simulator = (function(){
+  const sim = {};
+  // internal state
+  sim.targets = []; // array of target objects
+  sim.modules = []; // saved modules
+  sim.challenges = []; // challenge definitions
+  sim.currentChallenge = null;
+  sim.runState = null; // holds active run: target, sessions, logs, score
+  sim.player = { name: "Player1", score:0 };
+  sim.logs = [];
+  sim.helpers = {}; // helper functions exposed to modules (populated later)
+
+  // utilities
+  function now(){ return (new Date()).toISOString(); }
+  function str(obj){ try{ return JSON.stringify(obj); } catch(e){ return String(obj); } }
+
+  // default example challenge
+  function seedDefault(){
+    if (sim.challenges.length>0) return;
+    const demo = {
+      id: "demo1",
+      title: "Demo: WebApp Challenge",
+      description: "Classic simulated web app with SQLi and LFI. Find the flags.",
+      targets: [
+        {
+          id: "t1",
+          name: "vuln-webapp",
+          ip: "10.0.0.5",
+          services: {
+            http: {port:80, desc:"Example web app", vulns:["sqli","lfi"], banner:"Apache/2.4 (Simulated)"},
+            ssh: {port:22, desc:"OpenSSH (simulated)", vulns:[], banner:"OpenSSH_8.2p1 (Simulated)"}
+          },
+          files: {
+            "/var/www/index.php": "<?php echo 'Welcome'; ?>",
+            "/var/www/secret.txt": "TopSecretData",
+            "/var/www/flag.txt": "FLAG{demo_webapp_1}"
+          },
+          db: {
+            users: [{id:1,username:"admin",pass:"hunter2"},{id:2,username:"guest",pass:"guest"}],
+            secret: "DB_SECRET_DATA"
+          },
+          meta: {
+            created: now()
+          }
+        },
+        {
+          id: "t2",
+          name: "vulnerable-db",
+          ip: "10.0.0.6",
+          services: {
+            mysql: {port:3306, desc:"MySQL (sim)", vulns:["weak-auth"], banner:"MySQL 5.7 (Simulated)"},
+            api: {port:8080, desc:"Internal API", vulns:["rce"], banner:"SimAPI/1.2 (Sim)"}
+          },
+          files: {
+            "/etc/db_conf": "dbpass=simpass",
+            "/root/flag.txt": "FLAG{demo_db_2}"
+          },
+          db: { secrets: ["alpha","beta"]},
+          meta:{created:now()}
+        }
+      ],
+      flags:[
+        {targetId:"t1",path:"/var/www/flag.txt",value:"FLAG{demo_webapp_1}",points:100, hint:"Check the webroot"},
+        {targetId:"t2",path:"/root/flag.txt",value:"FLAG{demo_db_2}",points:150, hint:"Root files contain secrets"}
+      ],
+      hints: ["Start with port scanning.","Try input fields for SQLi-like strings."]
+    };
+    sim.challenges.push(demo);
+  }
+
+  // Module helpers available to modules (restricted/simulated)
+  sim.helpers.log = function(...args){ sim.appendLog(args.join(" ")); };
+  sim.helpers.getFlag = function(target, path){
+    // returns flag object or null
+    const t = findTargetById(target.id);
+    if (!t) return null;
+    if (t.files && t.files[path]) {
+      return { path:path, value:t.files[path] };
+    }
+    // also check declared flags in current challenge
+    const ch = sim.currentChallenge;
+    if (!ch) return null;
+    const f = ch.flags.find(f=>f.targetId===target.id && f.path===path);
+    return f || null;
+  };
+  sim.helpers.createSession = function(target, info){
+    // create a simulated session (shell) object attached to runState
+    if (!sim.runState) return null;
+    const sess = {
+      id: "s"+Math.floor(Math.random()*100000),
+      targetId: target.id,
+      user: info && info.user ? info.user : "www-data",
+      created: now(),
+      cwd: "/",
+      env: {},
+      prompt: (info && info.user ? info.user : "user") + "@" + target.name + ":$",
+      // interactive read/write logs
+      history: []
+    };
+    sim.runState.sessions.push(sess);
+    sim.appendLog(`Session created: ${sess.id} (${sess.user}@${target.name})`);
+    return sess;
+  };
+
+  // search helpers
+  function findTargetById(id){
+    if (!sim.currentChallenge) return null;
+    return sim.currentChallenge.targets.find(t=>t.id===id) || null;
+  }
+
+  sim.appendLog = function(line){
+    const stamp = "["+ (new Date()).toLocaleTimeString()+"] ";
+    const ln = stamp + line;
+    sim.logs.push(ln);
+    // limit logs
+    while(sim.logs.length > 1000) sim.logs.shift();
+    // update UI
+    onUiUpdate && onUiUpdate();
+  };
+
+  // run lifecycle
+  sim.startRun = function(challengeId, player){
+    sim.player.name = player || sim.player.name;
+    sim.currentChallenge = sim.challenges.find(c=>c.id===challengeId);
+    if (!sim.currentChallenge) { sim.appendLog("Challenge not found"); return false; }
+    sim.runState = {
+      started: now(),
+      challengeId: challengeId,
+      discovered: {}, // by targetId: { ports:[], services:[] }
+      sessions: [],
+      score: 0,
+      foundFlags: []
+    };
+    sim.appendLog("Started challenge: "+sim.currentChallenge.title+" (player: "+sim.player.name+")");
+    // preload saved modules (demo)
+    if (sim.modules.length===0) loadDefaultModules();
+    ui.updateAll();
+    return true;
+  };
+
+  sim.endRun = function(){
+    if (!sim.runState) return;
+    // store scoreboard
+    const board = JSON.parse(localStorage.getItem("ctf_scoreboard")||"[]");
+    board.push({player:sim.player.name, challenge:sim.currentChallenge.title, score: sim.runState.score, time: now()});
+    localStorage.setItem("ctf_scoreboard", JSON.stringify(board));
+    sim.appendLog("Run ended. Score: "+sim.runState.score);
+    sim.currentChallenge = null;
+    sim.runState = null;
+    ui.updateAll();
+  };
+
+  // scanning (simulated)
+  sim.scanTarget = function(targetId){
+    const t = findTargetById(targetId);
+    if (!t) { sim.appendLog("target not found"); return {success:false, log:"not found"}; }
+    sim.appendLog("Scanning " + t.name + " ("+t.ip+") ...");
+    const ports = Object.keys(t.services || {});
+    // mark discovered
+    sim.runState.discovered[targetId] = sim.runState.discovered[targetId] || {ports: [], services: []};
+    sim.runState.discovered[targetId].ports = ports;
+    sim.runState.discovered[targetId].services = ports.map(p=>({name: t.services[p].name || p, port: t.services[p].port || p, banner: t.services[p].banner || ""}));
+    sim.appendLog("Found services: "+ports.join(", "));
+    ui.updateAll();
+    return {success:true, ports: ports};
+  };
+
+  // enumeration of a service (simulated deeper enumeration)
+  sim.enumerateService = function(targetId, svcName){
+    const t = findTargetById(targetId);
+    if (!t || !t.services) { sim.appendLog("Service not found"); return {success:false}; }
+    const svc = t.services[svcName] || t.services[Object.keys(t.services).find(k=>t.services[k].name===svcName)];
+    if (!svc) { sim.appendLog("Service not found: "+svcName); return {success:false}; }
+    sim.appendLog("Enumerating " + svcName + " on " + t.name + " ...");
+    // reveal vulnerabilities and banners as enumeration result
+    const res = { banner: svc.banner || "", vulns: svc.vulns || [] };
+    sim.appendLog("Banner: "+res.banner);
+    if (res.vulns.length) sim.appendLog("Potential vulns: "+res.vulns.join(", "));
+    ui.updateAll();
+    return res;
+  };
+
+  // attempt to run a module against a target
+  sim.runModule = async function(modId, targetId){
+    const mod = sim.modules.find(m=>m.name===modId);
+    const t = findTargetById(targetId);
+    if (!mod) { sim.appendLog("Module not found: "+modId); return; }
+    if (!t) { sim.appendLog("Target not found: "+targetId); return; }
+    sim.appendLog("Running module " + mod.name + " against " + t.name);
+    // provide a safe sandbox: module.run is executed with sim.helpers available
+    try {
+      // run could be sync or return Promise
+      const ctx = { sim: { log: sim.helpers.log, getFlag: sim.helpers.getFlag, createSession: sim.helpers.createSession, enumerateService: sim.enumerateService } };
+      let result = mod.run(t, ctx);
+      if (result && typeof result.then === "function") result = await result;
+      // interpret result
+      if (result) {
+        if (result.log) sim.appendLog(result.log);
+        if (result.success) {
+          sim.appendLog("Module reported success");
+          if (result.newSession) {
+            // create session object in runState
+            const sess = sim.helpers.createSession(t, result.newSession);
+            if (result.newSession.initialCommands) {
+              sess.history.push({cmd:"[auto]", out: result.newSession.initialCommands.join("\n")});
+            }
+          }
+          if (result.found && result.found.flag) {
+            // record flag capture if matches challenge flags
+            const ch = sim.currentChallenge;
+            if (ch) {
+              const f = ch.flags.find(ff=>ff.targetId===t.id && ff.path===result.found.flag.path);
+              if (f && !sim.runState.foundFlags.find(x=>x.value === f.value)) {
+                sim.runState.foundFlags.push({value:f.value, points: f.points, foundAt: now()});
+                sim.runState.score += f.points;
+                sim.player.score = sim.runState.score;
+                sim.appendLog("Flag captured: "+f.value+" (+ "+f.points+" pts)");
+              } else {
+                sim.appendLog("Found potential data but not a registered flag");
+              }
+            }
+          }
+        } else {
+          sim.appendLog("Module reported failure");
+        }
+      }
+    } catch (e) {
+      sim.appendLog("Module exception: " + String(e));
+    }
+    ui.updateAll();
+  };
+
+  // register module (used by UI)
+  sim.saveModule = function(modObj){
+    // must have name & run
+    if (!modObj || !modObj.name || !modObj.run) throw new Error("Invalid module object");
+    // remove existing same-name
+    sim.modules = sim.modules.filter(m=>m.name!==modObj.name);
+    sim.modules.push(modObj);
+    localStorage.setItem("ctf_modules", JSON.stringify(sim.modules.map(m=>({name:m.name,type:m.type||'mod',description:m.description||''}))));
+    sim.appendLog("Module saved: "+modObj.name);
+    ui.updateAll();
+  };
+
+  // load modules from storage (basic metadata only)
+  function loadModulesFromStorage(){
+    try {
+      const meta = JSON.parse(localStorage.getItem("ctf_modules")||"[]");
+      // we keep only simple modules from previous runs (not full code). On reload modules editor remains.
+      sim.modules = sim.modules.concat(meta.map(m=>({name:m.name, type:m.type||'mod', description:m.description||'', run: function(t,ctx){ ctx.sim.log('placeholder module (recreate in editor)'); return {success:false, log:'placeholder'};}})));
+    } catch(e){}
+  }
+
+  function loadDefaultModules(){
+    // demo modules: scanner, enum, exploit
+    sim.modules.push({
+      name:"demo_ping",
+      type:"scanner",
+      description:"Simulated ping / port listing",
+      run:function(target,ctx){
+        ctx.sim.log("ping -> " + target.name + " ("+target.ip+")");
+        const ports = Object.keys(target.services || {});
+        return { success:true, log:"Open (sim): "+ports.join(","), found: null };
+      }
+    });
+    sim.modules.push({
+      name:"demo_enum_http",
+      type:"enum",
+      description:"Simulated HTTP enumeration revealing LFI/Sqli vuln",
+      run:function(target,ctx){
+        const r = ctx.sim.enumerateService(target.id,"http");
+        let log = "HTTP banner: "+r.banner+"\n";
+        if (r.vulns.length) log += "Possible vulns: "+r.vulns.join(", ");
+        return { success:true, log: log, found: null };
+      }
+    });
+    sim.modules.push({
+      name:"demo_exploit_sqli",
+      type:"exploit",
+      description:"Simulated SQLi that reads DB and recovers a flag",
+      run:function(target,ctx){
+        // vulnerable if service "http" has sqli vuln
+        const svc = target.services && target.services.http;
+        if (!svc || !(svc.vulns||[]).includes("sqli")) {
+          ctx.sim.log("Target not vulnerable to sqli (simulated)"); return {success:false, log:"not vulnerable"};
+        }
+        // find a flag in files for this target under webroot
+        const fpath = Object.keys(target.files||{}).find(p=>p.includes("flag"));
+        const flagVal = fpath ? target.files[fpath] : null;
+        if (flagVal) {
+          ctx.sim.log("SQLi succeeded. Retrieved: "+flagVal);
+          return { success:true, log: "extracted flag "+flagVal, found:{flag:{path:fpath,value:flagVal}} };
+        } else {
+          ctx.sim.log("SQLi succeeded but no flag found in webroot");
+          return { success:true, log:"sqli dumped data but nothing flagged" };
+        }
+      }
+    });
+    // persist metadata
+    localStorage.setItem("ctf_modules", JSON.stringify(sim.modules.map(m=>({name:m.name,type:m.type,description:m.description}))));
+    ui.updateAll();
+  }
+
+  // challenge import/export
+  sim.exportChallenge = function(chId){
+    const ch = sim.challenges.find(c=>c.id===chId);
+    if (!ch) return null;
+    return JSON.stringify(ch, null, 2);
+  };
+  sim.importChallenge = function(json){
+    try {
+      const ch = JSON.parse(json);
+      if (!ch.id) ch.id = "ch_"+Math.floor(Math.random()*100000);
+      sim.challenges.push(ch);
+      ui.updateAll();
+      return true;
+    } catch(e){ return false; }
+  };
+
+  // authoring helpers
+  sim.addTargetToChallenge = function(chId, target){
+    const ch = sim.challenges.find(c=>c.id===chId);
+    if (!ch) return false;
+    ch.targets.push(target);
+    ui.updateAll();
+    return true;
+  };
+
+  // persistence for challenges
+  sim.saveChallenge = function(ch){
+    if (!ch.id) ch.id = "ch_"+Math.floor(Math.random()*100000);
+    sim.challenges = sim.challenges.filter(c=>c.id!==ch.id);
+    sim.challenges.push(ch);
+    localStorage.setItem("ctf_challenges", JSON.stringify(sim.challenges));
+    ui.updateAll();
+    sim.appendLog("Challenge saved: "+ch.title);
+  };
+
+  sim.loadFromStorage = function(){
+    try{
+      const s = JSON.parse(localStorage.getItem("ctf_challenges")||"[]");
+      if (Array.isArray(s) && s.length) { sim.challenges = s; }
+    }catch(e){}
+    loadModulesFromStorage();
+  };
+
+  // public API
+  return {
+    sim,
+    seedDefault,
+    loadFromStorage,
+    findTargetById,
+  };
+})();
+
+// UI layer
+const ui = (function(){
+  const el = {};
+  el.challengeList = document.getElementById("challengeList");
+  el.targets = document.getElementById("targets");
+  el.modules = document.getElementById("modules");
+  el.terminal = document.getElementById("terminal");
+  el.termInput = document.getElementById("termInput");
+  el.termSend = document.getElementById("termSend");
+  el.clearTerm = document.getElementById("clearTerm");
+  el.sessionInfo = document.getElementById("sessionInfo");
+  el.hints = document.getElementById("hints");
+  el.score = document.getElementById("score");
+  el.savedChallenges = document.getElementById("savedChallenges");
+  el.playerName = document.getElementById("playerName");
+  el.playerNameInput = document.getElementById("playerNameInput");
+
+  function renderChallenges(){
+    el.challengeList.innerHTML = "";
+    Simulator.sim.challenges.forEach(ch=>{
+      const d = document.createElement("div");
+      d.className = "target";
+      d.innerHTML = `<div style="flex:1"><strong>${ch.title}</strong><div class="muted" style="font-size:12px">${ch.description}</div></div>
+                     <div style="display:flex;flex-direction:column;gap:6px">
+                       <button data-id="${ch.id}" class="small startBtn">Start</button>
+                       <button data-id="${ch.id}" class="small ghost">View</button>
+                     </div>`;
+      el.challengeList.appendChild(d);
+    });
+    // attach handlers
+    document.querySelectorAll(".startBtn").forEach(b=>b.addEventListener("click", e=>{
+      const id = e.currentTarget.getAttribute("data-id");
+      const name = Simulator.sim.player.name || "Player1";
+      Simulator.sim.startRun(id, name);
+      updateAll();
+    }));
+  }
+
+  function renderTargets(){
+    el.targets.innerHTML = "";
+    if (!Simulator.sim.currentChallenge) { el.targets.innerHTML = "<div class='muted'>No active challenge</div>"; return; }
+    Simulator.sim.currentChallenge.targets.forEach(t=>{
+      const div = document.createElement("div");
+      div.className = "target "+ (Simulator.sim.runState && Simulator.sim.runState.discovered[t.id] ? "active" : "");
+      div.innerHTML = `<div><strong>${t.name}</strong><div class="muted">${t.ip} • ${Object.keys(t.services||{}).length} services</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button data-id="${t.id}" class="small scanBtn">Scan</button>
+          <button data-id="${t.id}" class="small ghost enumBtn">Enum</button>
+        </div>`;
+      el.targets.appendChild(div);
+    });
+    // handlers
+    document.querySelectorAll(".scanBtn").forEach(b=>b.addEventListener("click", e=>{
+      const id = e.currentTarget.getAttribute("data-id");
+      Simulator.sim.scanTarget(id);
+      updateAll();
+    }));
+    document.querySelectorAll(".enumBtn").forEach(b=>b.addEventListener("click", e=>{
+      const id = e.currentTarget.getAttribute("data-id");
+      // simple: enumerate HTTP if present
+      const t = Simulator.sim.currentChallenge.targets.find(x=>x.id===id);
+      if (t.services.http) {
+        const res = Simulator.sim.enumerateService(id,"http");
+        Simulator.sim.appendLog("Enumeration: " + (res.vulns||[]).join(", "));
+      } else {
+        Simulator.sim.appendLog("No HTTP service to enumerate (sim)");
+      }
+      updateAll();
+    }));
+  }
+
+  function renderModules(){
+    el.modules.innerHTML = "";
+    if (Simulator.sim.modules.length===0) {
+      el.modules.innerHTML = "<div class='muted'>No modules saved. Use the Module Editor to create modules.</div>";
+      return;
+    }
+    Simulator.sim.modules.forEach(m=>{
+      const div = document.createElement("div");
+      div.className = "module";
+      div.innerHTML = `<div><strong>${m.name}</strong><div class="muted" style="font-size:12px">${m.description||''}</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <select data-name="${m.name}" class="targetSel small"><option value=''>Select target...</option>${(Simulator.sim.currentChallenge?Simulator.sim.currentChallenge.targets.map(t=>`<option value="${t.id}">${t.name}</option>`).join(""):'')}</select>
+          <div style="display:flex;gap:6px">
+            <button data-name="${m.name}" class="small runMod">Run</button>
+            <button data-name="${m.name}" class="small ghost">Edit</button>
+          </div>
+        </div>`;
+      el.modules.appendChild(div);
+    });
+    document.querySelectorAll(".runMod").forEach(b=>b.addEventListener("click", e=>{
+      const name = e.currentTarget.getAttribute("data-name");
+      const sel = document.querySelector(`select[data-name="${name}"]`);
+      const tid = sel ? sel.value : null;
+      if (!tid) { Simulator.sim.appendLog("Choose a target first"); return; }
+      Simulator.sim.runModule(name, tid);
+    }));
+  }
+
+  function renderTerminal(){
+    const term = el.terminal;
+    term.innerHTML = "";
+    Simulator.sim.logs.forEach(l=>{
+      const div = document.createElement("div");
+      div.className = "line";
+      div.textContent = l;
+      term.appendChild(div);
+    });
+    // sessions
+    if (Simulator.sim.runState && Simulator.sim.runState.sessions.length){
+      const s = Simulator.sim.runState.sessions[Simulator.sim.runState.sessions.length-1];
+      el.sessionInfo.innerHTML = `<div>Session: ${s.id}</div><div>User: ${s.user}</div><div>CWD: ${s.cwd}</div>`;
+    } else {
+      el.sessionInfo.innerHTML = "<div class='muted'>No session.</div>";
+    }
+    // scroll bottom
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function renderHints(){
+    el.hints.innerHTML = "";
+    if (Simulator.sim.currentChallenge && Simulator.sim.currentChallenge.hints) {
+      Simulator.sim.currentChallenge.hints.forEach(h=>{
+        const d = document.createElement("div");
+        d.className = "hint";
+        d.textContent = h;
+        el.hints.appendChild(d);
+      });
+    } else {
+      el.hints.innerHTML = "<div class='muted'>No hints (try scanning first).</div>";
+    }
+  }
+
+  function renderSavedChallenges(){
+    el.savedChallenges.innerHTML = "";
+    Simulator.sim.challenges.forEach(ch=>{
+      const d = document.createElement("div");
+      d.className = "muted";
+      d.innerHTML = `<div style="margin-bottom:6px"><strong>${ch.title}</strong> — ${ch.targets.length} targets</div>`;
+      el.savedChallenges.appendChild(d);
+    });
+  }
+
+  function updateAll(){
+    renderChallenges();
+    renderTargets();
+    renderModules();
+    renderTerminal();
+    renderHints();
+    renderSavedChallenges();
+    document.getElementById("score").textContent = Simulator.sim.runState ? Simulator.sim.runState.score : Simulator.sim.player.score || 0;
+    document.getElementById("playerName").textContent = Simulator.sim.player.name || "Player1";
+  }
+
+  // wire up UI interactions
+  function wire(){
+    document.getElementById("newChallengeBtn").addEventListener("click", ()=>{
+      // create blank challenge
+      const ch = { id:"ch_"+Math.floor(Math.random()*10000), title:"New Challenge", description:"", targets:[], flags:[], hints:[]};
+      Simulator.sim.challenges.push(ch);
+      updateAll();
+      Simulator.sim.appendLog("New challenge created (in memory). Use Save Challenge to persist.");
+    });
+
+    document.getElementById("importBtn").addEventListener("click", ()=>document.getElementById("importFile").click());
+    document.getElementById("importFile").addEventListener("change", e=>{
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const ok = Simulator.sim.importChallenge(reader.result);
+        if (ok) Simulator.sim.appendLog("Imported challenge from file");
+        updateAll();
+      };
+      reader.readAsText(f);
+    });
+
+    document.getElementById("scanBtn").addEventListener("click", ()=>{
+      // scan all targets
+      if (!Simulator.sim.currentChallenge) { Simulator.sim.appendLog("No active challenge."); return; }
+      Simulator.sim.currentChallenge.targets.forEach(t=>Simulator.sim.scanTarget(t.id));
+      updateAll();
+    });
+
+    document.getElementById("enumBtn").addEventListener("click", ()=>{
+      if (!Simulator.sim.currentChallenge) { Simulator.sim.appendLog("No active challenge."); return; }
+      Simulator.sim.currentChallenge.targets.forEach(t=>{
+        if (t.services.http) Simulator.sim.enumerateService(t.id,"http");
+      });
+      updateAll();
+    });
+
+    document.getElementById("runAllBtn").addEventListener("click", ()=>{
+      if (!Simulator.sim.currentChallenge) { Simulator.sim.appendLog("No active challenge."); return; }
+      Simulator.sim.modules.forEach(m=>{
+        if (m.type === "exploit" || m.type === "enum" || m.type==="scanner") {
+          Simulator.sim.currentChallenge.targets.forEach(t=>{
+            Simulator.sim.runModule(m.name, t.id);
+          });
+        }
+      });
+    });
+
+    document.getElementById("termSend").addEventListener("click", ()=>{
+      const v = el.termInput.value.trim(); el.termInput.value = "";
+      if (!v) return;
+      // interpret basic simulated commands: help, sessions, ls, cat <path>, exit
+      Simulator.sim.appendLog("> "+v);
+      handleTerminalCommand(v);
+    });
+
+    document.getElementById("clearTerm").addEventListener("click", ()=>{
+      Simulator.sim.logs = []; updateAll();
+    });
+
+    document.getElementById("dropShell").addEventListener("click", ()=>{
+      if (!Simulator.sim.runState || !Simulator.sim.currentChallenge) { Simulator.sim.appendLog("No run active"); return; }
+      // pick first target and create a session
+      const t = Simulator.sim.currentChallenge.targets[0];
+      Simulator.sim.helpers.createSession(t, {user:"www-data"});
+      updateAll();
+    });
+
+    document.getElementById("getFlag").addEventListener("click", ()=>{
+      if (!Simulator.sim.runState) { Simulator.sim.appendLog("No run active"); return; }
+      // check runState foundFlags
+      if (Simulator.sim.runState.foundFlags.length) {
+        Simulator.sim.appendLog("Captured flags: " + Simulator.sim.runState.foundFlags.map(f=>f.value).join(", "));
+      } else {
+        Simulator.sim.appendLog("No flags captured yet. Try exploiting services.");
+      }
+    });
+
+    document.getElementById("saveModule").addEventListener("click", ()=>{
+      const code = document.getElementById("modEditor").innerText;
+      try {
+        const fn = new Function(code + "\n;return (typeof module === 'undefined' ? (typeof window !== 'undefined' ? window : this) : module).exports;");
+        // But our template returns the object, so evaluate safely via eval in a sandboxed function
+        const modObj = (new Function("sim", "return ("+code+")"))( { log: Simulator.sim.helpers.log } );
+        // Basic validation
+        if (!modObj || !modObj.name || !modObj.run) { Simulator.sim.appendLog("Module must return an object with name and run(target,ctx)"); return; }
+        // store module: ensure run function is bound as function
+        Simulator.sim.saveModule(modObj);
+        updateAll();
+      } catch(e){
+        Simulator.sim.appendLog("Module save failed: "+String(e));
+      }
+    });
+
+    document.getElementById("loadModule").addEventListener("click", ()=>{
+      // load selected from modules list (take first)
+      const m = Simulator.sim.modules[0];
+      if (!m) { Simulator.sim.appendLog("No module to load"); return; }
+      document.getElementById("modName").value = m.name;
+      document.getElementById("modType").value = m.type || '';
+      document.getElementById("modEditor").innerText = "(function(){ return " + JSON.stringify({name:m.name,type:m.type,description:m.description}) + "; })();";
+    });
+
+    document.getElementById("saveChallenge").addEventListener("click", ()=>{
+      const ch = {
+        id: "ch_" + Math.floor(Math.random()*100000),
+        title: document.getElementById("chTitle").value || "Unnamed",
+        description: document.getElementById("chDesc").value || "",
+        targets: [],
+        flags: [],
+        hints: []
+      };
+      Simulator.sim.saveChallenge(ch);
+      updateAll();
+    });
+
+    document.getElementById("startChallenge").addEventListener("click", ()=>{
+      // add a new challenge from UI fields and start
+      const ch = {
+        id: "ch_" + Math.floor(Math.random()*100000),
+        title: document.getElementById("chTitle").value || "Ad-hoc",
+        description: document.getElementById("chDesc").value || "",
+        targets: Simulator.sim.targets || [],
+        flags: []
+      };
+      // persist and start
+      Simulator.sim.saveChallenge(ch);
+      Simulator.sim.startRun(ch.id, Simulator.sim.player.name);
+      updateAll();
+    });
+
+    document.getElementById("addTarget").addEventListener("click", ()=>{
+      const name = document.getElementById("tName").value || "target_"+Math.floor(Math.random()*9999);
+      const ip = document.getElementById("tIP").value || "10.0.0."+Math.floor(Math.random()*250);
+      let svcs = [];
+      try { svcs = JSON.parse(document.getElementById("tServices").value); } catch(e) { Simulator.sim.appendLog("Invalid services JSON"); return; }
+      let flags = [];
+      try { flags = JSON.parse(document.getElementById("tFlags").value); } catch(e) { Simulator.sim.appendLog("Invalid flags JSON"); return; }
+      // convert svcs array into keyed object
+      const svcObj = {};
+      svcs.forEach(s=>{
+        const key = s.name || s.port || ("svc"+Math.floor(Math.random()*1000));
+        svcObj[key] = { port: s.port || key, desc: s.desc||"", vulns: s.vulns||[], banner: s.banner||"" };
+      });
+      const files = {};
+      flags.forEach(f=>{ files[f.path] = f.value; });
+      const t = { id: "t_"+Math.floor(Math.random()*99999), name, ip, services: svcObj, files: files, meta:{created:(new Date()).toISOString()} };
+      // for now add to a special sim.targets list; authoring then persists to challenge on Save Challenge
+      if (!Simulator.sim.targets) Simulator.sim.targets = [];
+      Simulator.sim.targets.push(t);
+      Simulator.sim.appendLog("Added target " + name);
+      updateAll();
+    });
+
+    document.getElementById("clearTargets").addEventListener("click", ()=>{
+      Simulator.sim.targets = [];
+      updateAll();
+    });
+
+    document.getElementById("setName").addEventListener("click", ()=>{
+      const n = document.getElementById("playerNameInput").value.trim();
+      if (n) { Simulator.sim.player.name = n; Simulator.sim.appendLog("Set player name: "+n); updateAll(); }
+    });
+
+    document.getElementById("exportCh").addEventListener("click", ()=>{
+      if (!Simulator.sim.currentChallenge) { Simulator.sim.appendLog("No active challenge to export"); return; }
+      const j = Simulator.sim.exportChallenge(Simulator.sim.currentChallenge.id);
+      download("challenge_"+Simulator.sim.currentChallenge.id+".json", j);
+    });
+
+    document.getElementById("exportRun").addEventListener("click", ()=>{
+      if (!Simulator.sim.runState) { Simulator.sim.appendLog("No run state"); return; }
+      const j = JSON.stringify(Simulator.sim.runState,null,2);
+      download("run_"+(new Date()).toISOString().replace(/[:.]/g,"_")+".json", j);
+    });
+
+    // quick demo: seed default challenge on first load
+    updateAll();
+  }
+
+  function handleTerminalCommand(cmd){
+    const parts = cmd.split(/\s+/);
+    const c = parts[0].toLowerCase();
+    const arg = parts.slice(1).join(" ");
+    if (c === "help") {
+      Simulator.sim.appendLog("Commands: help, score, sessions, ls <path>, cat <path>, flags, exit");
+    } else if (c === "score") {
+      Simulator.sim.appendLog("Score: " + (Simulator.sim.runState?Simulator.sim.runState.score:0));
+    } else if (c === "sessions") {
+      if (!Simulator.sim.runState || !Simulator.sim.runState.sessions.length) Simulator.sim.appendLog("No sessions");
+      else Simulator.sim.runState.sessions.forEach(s=>Simulator.sim.appendLog("Session "+s.id+" user:"+s.user+" cwd:"+s.cwd));
+    } else if (c === "ls") {
+      // list files in simulated session last session
+      const s = Simulator.sim.runState && Simulator.sim.runState.sessions[Simulator.sim.runState.sessions.length-1];
+      if (!s) { Simulator.sim.appendLog("No session. Use a module to create session or dropShell."); return; }
+      const t = Simulator.sim.currentChallenge.targets.find(tt=>tt.id===s.targetId);
+      if (!t) { Simulator.sim.appendLog("Target not found"); return; }
+      const files = Object.keys(t.files||{}).filter(p=>p.startsWith(s.cwd)).map(p=>p.replace(s.cwd,""));
+      Simulator.sim.appendLog("/ "+ (files.length ? files.join(", ") : "(empty)"));
+    } else if (c === "cat") {
+      const path = arg;
+      const s = Simulator.sim.runState && Simulator.sim.runState.sessions[Simulator.sim.runState.sessions.length-1];
+      if (!s) { Simulator.sim.appendLog("No session."); return; }
+      const t = Simulator.sim.currentChallenge.targets.find(tt=>tt.id===s.targetId);
+      if (!t) { Simulator.sim.appendLog("Target not found"); return; }
+      const v = t.files[path] || t.files[s.cwd + path];
+      if (v) {
+        Simulator.sim.appendLog(v);
+        // if it's a flag value and matches challenge flags, add to score
+        const ch = Simulator.sim.currentChallenge;
+        const ff = ch.flags.find(f=>f.targetId===t.id && f.path===path);
+        if (ff && !Simulator.sim.runState.foundFlags.find(x=>x.value===ff.value)) {
+          Simulator.sim.runState.foundFlags.push({value:ff.value,points:ff.points,foundAt:(new Date()).toISOString()});
+          Simulator.sim.runState.score += ff.points;
+          Simulator.sim.appendLog("Flag captured: "+ff.value+" (+ "+ff.points+" pts)");
+        }
+      } else {
+        Simulator.sim.appendLog("No such file: "+path);
+      }
+    } else if (c === "flags") {
+      if (!Simulator.sim.runState) { Simulator.sim.appendLog("No run"); return; }
+      if (Simulator.sim.runState.foundFlags.length===0) Simulator.sim.appendLog("No flags found yet");
+      else Simulator.sim.runState.foundFlags.forEach(f=>Simulator.sim.appendLog(f.value+" ("+f.points+" pts)"));
+    } else if (c === "exit") {
+      Simulator.sim.appendLog("Exiting session..."); Simulator.sim.endRun();
+    } else {
+      Simulator.sim.appendLog("Unknown command. Try 'help'.");
+    }
+    updateAll();
+  }
+
+  function download(filename, text){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text],{type:"application/json"}));
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  return { wire, updateAll };
+})();
+
+// init
+(function init(){
+  Simulator.seedDefault();
+  Simulator.loadFromStorage();
+  ui.wire();
+  ui.updateAll();
+  // show sample guidance in terminal
+  Simulator.sim.appendLog("Welcome to the CTF Pentest Simulator. Press 'Start' on a challenge to begin.");
+  Simulator.sim.appendLog("Type 'help' in terminal to see commands. Use Module Editor to craft simulated modules.");
+  ui.updateAll();
+})();
+
+</script>
+</body>
+</html>
